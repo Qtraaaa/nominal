@@ -4,7 +4,8 @@
   var CH = {};
   B.channels.forEach(function (c) { CH[c.id] = c; });
   var LETTERS = B.channels.map(function (c) { return c.char; });
-  var F = { cam: B.form.order[0], time: B.form.order[1], check: B.form.order[2], judge: B.form.order[3], s1: B.form.s1 };
+  var F = { cam: B.form.order[0], time: B.form.order[1], check: B.form.order[2], judge: B.form.order[3], s1: [] };
+  CFG.s1Order.forEach(function (k, i) { F.s1[k] = (i + 1) + " " + B.form.s1[k].replace(/^\d+ /, ""); });
   var $ = function (id) { return document.getElementById(id); };
   var DEMO = false;
   try { DEMO = sessionStorage.getItem(CFG.storageKey + ".demo") === "1"; } catch (e) {  }
@@ -116,7 +117,8 @@
     var d = delay; delay += 120;
     return "<" + (tag || "div") + ' class="ln ' + (cls || "") + '" style="animation-delay:' + d + 'ms">' + html + "</" + (tag || "div") + ">";
   }
-  function row(k, v, cls) { return ln('<span class="k">' + k + '</span><span class="v">' + v + "</span>", "row " + (cls || "")); }
+  function kv(k, v) { return '<span class="k">' + k + '</span><span class="v">' + v + "</span>"; }
+  function row(k, v, cls) { return ln(kv(k, v), "row " + (cls || "")); }
   function doneVal(L) {
     var m = /^(\D+)(\d+)(\D+)$/.exec(B.reader.records);
     return '<span class="t b">' + m[1] + "</span>" + m[2] + '<span class="u">' + m[3] + '</span><span class="sub">' + R.formatKST(firstAccess(L)) + "</span>";
@@ -176,17 +178,19 @@
     var mismatch = e.seg || e.again, done = doneBy(L, e.seq);
     var no = S.number ? R.displayNumber(S.number) + " · " + pad4(e.seq) : '<span class="kr">미등록</span> · ' + pad4(e.seq);
     var id = camId(e), stage = stageOf(L, e);
+    function cap(k) { return ln('<span class="k">' + F.s1[k] + "</span>", "row cap"); }
+    var part = [
+      function () { return cap(0) + planHtml(e); },
+      function () { return cap(1) + loopHtml(e, id, stage) + ln("이 구간 열람 " + viewCount(L, e) + "회", "cap2"); },
+      function () { return checkRows(id); },
+      function () { return row(F.s1[3], '<span class="t' + (mismatch ? " b" : "") + '">' + (mismatch ? "불일치 1건" : "일치") + "</span>"); },
+      function () { return row(F.s1[4], chip()); },
+      function () { return row(F.s1[5], R.formatKST(e.at, true)); }
+    ];
     var h = '<div class="rec">' +
-      row("열람 번호 · 순번", no) +
-      row(F.cam, camName(e)) +
-      row(F.time, e.t, "time") +
-      ln('<span class="k">' + F.s1[0] + "</span>", "row cap") + planHtml(e) +
-      ln('<span class="k">' + F.s1[1] + "</span>", "row cap") + loopHtml(e, id, stage) +
-      ln("이 구간 열람 " + viewCount(L, e) + "회", "cap2") +
-      checkRows(id) +
-      row(F.s1[3], '<span class="t' + (mismatch ? " b" : "") + '">' + (mismatch ? "불일치 1건" : "일치") + "</span>") +
-      row(F.s1[4], chip()) +
-      row(F.s1[5], R.formatKST(e.at, true)) +
+      row("열람 번호 · 순번", no, "slim") +
+      ln("<div>" + kv(F.cam, camName(e)) + '</div><div class="time">' + kv(F.time, e.t) + "</div>", "row two") +
+      CFG.s1Order.map(function (k) { return part[k](); }).join("") +
       row(e.again ? "이전 접속 (정정)" : "이전 접속 1건", e.again ? R.formatKST(corrAt(L, e), true) : R.formatKST(preAt(L)), "alert") +
       (e.again ? ln("원본: 인쇄 보관본", "note") : "") +
       (done ? row(B.reader.label, doneVal(L), "done") : "") +
@@ -282,7 +286,7 @@
   window.addEventListener("popstate", function (e) { var st = e.state || { s: "S0" }; CUR = st; (SCREENS[st.s] || SCREENS.S0)(st); });
   document.addEventListener("click", function (e) {
     var b = e.target.closest("[data-go]");
-    if (b) go(b.getAttribute("data-go"));
+    if (b) { if (b.getAttribute("data-go") === CUR.s) window.scrollTo(0, 0); else go(b.getAttribute("data-go")); }
     else if (e.target.closest(".lp")) playLoop();
   });
   function demoStart() {

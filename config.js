@@ -3,6 +3,7 @@ window.NOMiNAL_CFG = {
   numberTime: { baseKST: "2026-11-01T00:00", spanDays: 21 },
   sampleNumbers: ["F3DD-VK75", "9BN5-5BSK", "C34T-UWFF"],
   logo: { svg: "logo.svg" },
+  s1Order: [1, 0, 2, 3, 4, 5],
   plan: {
     svg: "plan/plan.svg",
     path: "plan/path.json",

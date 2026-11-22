@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>NOMiNAL</title>
-<link rel="stylesheet" href="fonts/400.css?v=1.0.8">
-<link rel="stylesheet" href="fonts/600.css?v=1.0.8">
-<link rel="stylesheet" href="fonts/700.css?v=1.0.8">
-<script src="brand.js?v=1.0.8"></script>
-<script src="config.js?v=1.0.8"></script>
+<link rel="stylesheet" href="fonts/400.css?v=1.0.10">
+<link rel="stylesheet" href="fonts/600.css?v=1.0.10">
+<link rel="stylesheet" href="fonts/700.css?v=1.0.10">
+<script src="brand.js?v=1.0.10"></script>
+<script src="config.js?v=1.0.10"></script>
 <script>
 (function (B, C) {
   var s = document.documentElement.style, m = document.createElement("meta");
@@ -19,8 +19,8 @@
 })(window.NOMiNAL_BRAND, window.NOMiNAL_CFG);
 </script>
 <style>
-@font-face{font-family:"Bebas Neue";font-display:swap;src:url(https://fonts.gstatic.com/s/bebasneue/v16/JTUSjIg69CK48gW7PXoo9Wlhyw.woff2) format("woff2")}
-@font-face{font-family:"Rec Num";font-display:swap;src:url(https://fonts.gstatic.com/s/bebasneue/v16/JTUSjIg69CK48gW7PXoo9Wlhyw.woff2) format("woff2");unicode-range:U+30-39,U+41-5A}
+@font-face{font-family:"Bebas Neue";font-display:swap;src:url(fonts/bebas-neue-latin-400-normal.woff2) format("woff2")}
+@font-face{font-family:"Rec Num";font-display:swap;src:url(fonts/bebas-neue-latin-400-normal.woff2) format("woff2");unicode-range:U+30-39,U+41-5A}
 :root{
   --font-kr:"Rec Num","IBM Plex Sans KR","Malgun Gothic","Apple SD Gothic Neo",sans-serif;
   --font-num:"Bebas Neue","Arial Narrow",sans-serif;
@@ -41,9 +41,9 @@ body{font-synthesis:none;font-family:var(--font-kr);font-size:13px;line-height:1
 button,input{font:inherit;color:inherit}
 [hidden]{display:none!important}
 .sheet{max-width:calc(var(--H) * 5);margin:0 auto;padding:var(--L) var(--gut) calc(var(--pg-h) + var(--I))}
-@media (min-width:900px){ .sheet{padding:var(--H) 0 var(--H)} }
+@media (min-width:900px){ .sheet{padding:calc(var(--I) * 1.5) 0 var(--H)} }
 .hd{display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:var(--L);border-bottom:var(--rule) solid var(--ink)}
-.logo{display:block;height:var(--I);aspect-ratio:var(--lr);background:var(--ink);
+.logo{display:block;border:0;border-radius:0;appearance:none;cursor:pointer;height:var(--I);aspect-ratio:var(--lr);background:var(--ink);
   -webkit-mask:var(--lu) no-repeat center/contain;mask:var(--lu) no-repeat center/contain}
 .scr{font-weight:700;font-size:13px;letter-spacing:.02em;line-height:1}
 .fld{padding-top:var(--H)}
@@ -59,18 +59,22 @@ button,input{font:inherit;color:inherit}
   border:var(--rule) solid var(--ink);border-radius:0;background:transparent;text-align:left;
   padding:0 calc(var(--L) / 1.5);font-weight:700;font-size:14px;letter-spacing:.04em;cursor:pointer}
 .act:hover{background:var(--ink);color:var(--paper)}
-.act:focus-visible,.lk:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+.act:focus-visible,.lk:focus-visible,.logo:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
 .lks{display:flex;flex-wrap:wrap;gap:var(--L) calc(var(--L) * 1.5);padding-top:var(--I)}
 .lk{background:none;border:0;cursor:pointer;font-size:13px;font-weight:600;text-decoration:underline;
   text-decoration-thickness:1px;text-underline-offset:4px;padding:6px 0}
-.rec{margin-top:var(--I)}
+.rec{margin-top:calc(var(--I) * .5)}
 .row{display:grid;grid-template-columns:1fr auto;align-items:end;gap:var(--L);min-height:calc(var(--I) * 2);
   padding:calc(var(--L) / 2) calc(var(--L) / 2);border-bottom:var(--rule) solid var(--ink)}
 .row .k{font-size:12px;font-weight:600;letter-spacing:.04em;align-self:start;padding-top:2px}
 .row .v{font-family:var(--font-num);font-size:calc(var(--I) * 1.25);line-height:.9;letter-spacing:.02em;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
 .row .v .kr,.kr{font-family:var(--font-kr);font-size:.5em;font-weight:700;letter-spacing:0;vertical-align:.25em}
-.row.two{grid-template-columns:1fr 1fr;padding:0}
-.row.two>div{display:grid;grid-template-columns:1fr auto;gap:calc(var(--L) / 2);padding:calc(var(--L) / 2)}
+.row.slim{min-height:calc(var(--I) * 1.2);align-items:center;padding-top:calc(var(--L) / 4);padding-bottom:calc(var(--L) / 4)}
+.row.slim .k{align-self:center;padding:0}
+.row.slim .v{font-size:calc(var(--I) * .8);line-height:1}
+.row.two{grid-template-columns:1fr 1fr;gap:0;padding:0;align-items:stretch}
+.row.two>div{display:grid;grid-template-columns:1fr auto;gap:calc(var(--L) / 3);align-items:end;padding:calc(var(--L) / 2)}
+.row.two>div:not(.time) .v{padding-bottom:calc(var(--I) * .1125)}
 .row.two>div+div{border-left:var(--rule) solid var(--ink)}
 .row .t{font-family:var(--font-kr);font-size:calc(var(--I) * .6);font-weight:400;line-height:1.1;text-align:right;white-space:nowrap}
 .row .t.b{font-weight:700}
@@ -87,7 +91,7 @@ button,input{font:inherit;color:inherit}
 .lp .bl{left:calc(var(--L) / 2);bottom:calc(var(--L) / 2)}
 .lp .bl i{display:block;height:calc(var(--I) * .62);aspect-ratio:var(--lr);background:var(--paper);
   -webkit-mask:var(--lu) no-repeat center/contain;mask:var(--lu) no-repeat center/contain}
-.row.time .v{font-size:calc(var(--I) * 2);letter-spacing:var(--track)}
+.row .time .v{font-size:calc(var(--I) * 2);letter-spacing:var(--track)}
 .plan{border-bottom:var(--rule) solid var(--ink);padding:calc(var(--L) / 3) calc(var(--L) / 2)}
 .plan svg{display:block;width:100%;height:calc(var(--H) * 2.4)}
 .plan .wall *{fill:none;stroke:var(--ink);stroke-width:1px;vector-effect:non-scaling-stroke}
@@ -180,7 +184,7 @@ body.pv .rc{display:block;margin:var(--L) auto}
 <body>
 <main class="sheet">
   <header class="hd">
-    <span class="logo" role="img" aria-label="NOMiNAL"></span>
+    <button type="button" class="logo" aria-label="NOMiNAL" data-go="S0"></button>
     <h1 class="scr" id="scr"></h1>
   </header>
   <div id="view"></div>
@@ -188,8 +192,8 @@ body.pv .rc{display:block;margin:var(--L) auto}
 </main>
 <nav class="pg" id="pg" aria-label="n/6"></nav>
 <section class="rc" id="rc"></section>
-<script src="rule.js?v=1.0.8"></script>
-<script src="plan.js?v=1.0.8"></script>
-<script src="app.js?v=1.0.8"></script>
+<script src="rule.js?v=1.0.10"></script>
+<script src="plan.js?v=1.0.10"></script>
+<script src="app.js?v=1.0.10"></script>
 </body>
 </html>
