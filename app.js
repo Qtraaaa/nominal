@@ -5,7 +5,8 @@
   B.channels.forEach(function (c) { CH[c.id] = c; });
   var LETTERS = B.channels.map(function (c) { return c.char; });
   var F = { cam: B.form.order[0], time: B.form.order[1], check: B.form.order[2], judge: B.form.order[3], s1: [] };
-  CFG.s1Order.forEach(function (k, i) { F.s1[k] = (i + 1) + " " + B.form.s1[k].replace(/^\d+ /, ""); });
+  var NO = {};
+  B.form.s1.forEach(function (t) { var k = t.replace(/^\d+ /, ""); F.s1.push(k); NO[k] = t; });
   var $ = function (id) { return document.getElementById(id); };
   var DEMO = false;
   try { DEMO = sessionStorage.getItem(CFG.storageKey + ".demo") === "1"; } catch (e) {  }
@@ -81,7 +82,7 @@
   }
   function inText(v) { return v.replace(/[\d][\d.:]*/g, '<span class="n">$&</span>'); }
   function checkRows(id) {
-    return ln('<span class="k">' + F.s1[2] + "</span>", "row cap") + CH[id].checks.map(function (c) { return row(c[0], checkVal(c[1]), "ck"); }).join("");
+    return ln('<span class="k">' + NO[F.check] + "</span>", "row cap") + CH[id].checks.map(function (c) { return row(c[0], checkVal(c[1]), "ck"); }).join("");
   }
   function item1(e) { var c = CH[camId(e)].checks[0]; return c[0] + " " + inText(c[1]); }
   function ledHead() {
@@ -187,19 +188,18 @@
     var mismatch = e.seg || e.again, done = doneBy(L, e.seq);
     var no = S.number ? R.displayNumber(S.number) + " · " + pad4(e.seq) : '<span class="kr">미등록</span> · ' + pad4(e.seq);
     var id = camId(e), stage = stageOf(L, e);
-    function cap(k) { return ln('<span class="k">' + F.s1[k] + "</span>", "row cap"); }
-    var part = [
-      function () { return cap(0) + planHtml(e); },
-      function () { return cap(1) + loopHtml(id, stage, e.seg ? rangeOf(e.seg) : e.t) + hisHtml(L, e); },
-      function () { return checkRows(id); },
-      function () { return row(F.s1[3], '<span class="t' + (mismatch ? " b" : "") + '">' + (mismatch ? "불일치 1건" : "일치") + "</span>"); },
-      function () { return row(F.s1[4], chip()); },
-      function () { return row(F.s1[5], R.formatKST(e.at, true)); }
-    ];
+    function cap(k) { return ln('<span class="k">' + NO[k] + "</span>", "row cap"); }
+    var part = {};
+    part["고정 카메라 기록"] = function (k) { return cap(k) + loopHtml(id, stage, e.seg ? rangeOf(e.seg) : e.t) + hisHtml(L, e); };
+    part["위치"] = function (k) { return cap(k) + planHtml(e); };
+    part[F.check] = function () { return checkRows(id); };
+    part["기록 대조"] = function (k) { return row(NO[k], '<span class="t' + (mismatch ? " b" : "") + '">' + (mismatch ? "불일치 1건" : "일치") + "</span>"); };
+    part[F.judge] = function (k) { return row(NO[k], chip()); };
+    part["접속"] = function (k) { return row(NO[k], R.formatKST(e.at, true)); };
     var h = '<div class="rec">' +
       row("열람 번호 · 순번", no, "slim") +
       ln("<div>" + kv(F.cam, camName(e) + (e.seg ? rg(e.seg) : "")) + '</div><div class="time">' + kv(F.time, e.t) + "</div>", "row two") +
-      CFG.s1Order.map(function (k) { return part[k](); }).join("") +
+      F.s1.map(function (k) { return part[k](k); }).join("") +
       row(e.again ? "이전 접속 (정정)" : "이전 접속 1건", e.again ? R.formatKST(corrAt(L, e), true) : R.formatKST(preAt(L)), "alert") +
       (e.again ? ln("원본: 인쇄 보관본", "note") : "") +
       (done ? row(B.reader.label, doneVal(L), "done") : "") +
