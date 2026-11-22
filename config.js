@@ -1,5 +1,5 @@
 window.NOMiNAL_CFG = {
-  toleranceSec: 2,
+  sameSec: 2,
   numberTime: { baseKST: "2026-11-01T00:00", spanDays: 21 },
   sampleNumbers: ["F3DD-VK75", "9BN5-5BSK", "C34T-UWFF"],
   logo: { svg: "logo.svg" },
@@ -22,5 +22,6 @@ window.NOMiNAL_CFG = {
     suffix: "_noise",
     names: { normal: "normal", s0: "s0", v1: "v1", v2: "v2", v3: "v3" }
   },
+  thumbs: { dir: "thumbs/", ext: ".jpg" },
   storageKey: "NOMiNAL.reading.v1"
 };

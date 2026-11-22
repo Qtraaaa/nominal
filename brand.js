@@ -1,5 +1,5 @@
 window.NOMiNAL_BRAND = {
- "version": "1.1.0",
+ "version": "1.1.1",
  "logo": {
   "w": 400,
   "h": 105

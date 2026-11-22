@@ -17,14 +17,7 @@
   function matchSeg(t) {
     var rw = SEGS.filter(function (g) { return g.rw && t >= g.rw[0] && t <= g.rw[1]; });
     if (rw.length) return rw[rw.length - 1];
-    var best = null, bd = Infinity, inside = SEGS.filter(function (g) { return t >= g.s && t < g.e; });
-    if (inside.length) return inside[inside.length - 1];
-    SEGS.forEach(function (g) {
-      var d = t < g.s ? g.s - t : t - g.e;
-      if (d > CFG.toleranceSec) return;
-      if (d < bd || (d === bd && g.id > best.id)) { best = g; bd = d; }
-    });
-    return best;
+    return SEGS.filter(function (g) { return t >= g.s && t < g.e; }).pop() || null;
   }
   var PLAN = null, PLAN_STATE = "임시";
   function loadPlan() {
@@ -50,9 +43,7 @@
   function camLabel(id) { return B.labelFormat.replace("{nn}", R.pad(id)).replace("{char}", CH[id].char); }
   function camName(e) { return camLabel(camId(e)); }
   function planHtml(e) { return ln(window.NOMiNAL_PLAN.draw(PLAN, toSec(e.t), camId(e), CFG.plan.trailSec, camLabel, !e.seg), "plan"); }
-  function viewCount(L, e) {
-    return L.entries.slice(0, e.seq).filter(function (x) { return e.seg ? x.seg === e.seg : !x.seg && camId(x) === camId(e); }).length;
-  }
+  function rangeOf(id) { return CH[id].time.join("–"); }
   var STAGES = ["s0", "v1", "v2", "v3"];
   function stageOf(L, e) {
     if (e.fx) return e.fx;
@@ -60,13 +51,30 @@
     var n = L.entries.slice(0, e.seq - 1).filter(function (x) { return x.seg === e.seg; }).length;
     return STAGES[Math.min(n, STAGES.length - 1)];
   }
-  function loopHtml(e, id, stage) {
+  function loopHtml(id, stage, tl) {
     var C = CFG.loops, f = "loop_" + R.pad(id) + "_" + C.names[stage] + C.suffix;
     return ln('<video autoplay muted loop playsinline preload="auto"' + (C.poster ? ' poster="' + encodeURI(C.poster.dir + f + C.poster.ext) + '"' : "") + ' data-loop="' + R.pad(id) + "_" + stage + '">' +
       C.paths.map(function (p) { return '<source src="' + encodeURI(p.dir + f + p.ext) + '" type="' + p.type + '">'; }).join("") + "</video>" +
-      '<span class="hud tl">' + e.t + '</span><span class="hud tr">' + camName(e) + '</span><span class="hud bl"><i role="img" aria-label="NOMiNAL"></i></span>', "lp");
+      '<span class="hud tl">' + tl + '</span><span class="hud tr">' + camLabel(id) + '</span><span class="hud bl"><i role="img" aria-label="NOMiNAL"></i></span>', "lp");
   }
   function playLoop() { var v = document.querySelector(".lp video"); if (v) { v.muted = true; var p = v.play(); if (p) p.catch(function () {  }); } }
+  var HIS = "정정 이력", ORG = "원본", ORGV = "인쇄 보관본", NONE = "기록 없음";
+  function stageNo(L, e) { return e.seg ? STAGES.indexOf(stageOf(L, e)) + 1 : 0; }
+  function seenMap(L) {
+    var o = {};
+    L.entries.forEach(function (e) { var k = stageNo(L, e); if (k) (o[e.seg] = o[e.seg] || {})[k] = true; });
+    return o;
+  }
+  function seenCount(o) { return Object.keys(o).reduce(function (a, id) { return a + Object.keys(o[id]).length; }, 0); }
+  function hisHtml(L, e) {
+    var n = stageNo(L, e), seen = seenMap(L)[e.seg] || {};
+    if (!n) return ln('<span class="k">' + HIS + '</span><span class="none">' + NONE + "</span>", "his");
+    var h = '<b class="o">' + ORG + "</b>";
+    for (var k = 1; k <= STAGES.length; k++) {
+      h += seen[k] ? '<button type="button" class="' + (k === n ? "now" : "seen") + '" data-his="' + e.seg + "-" + k + '">' + k + "</button>" : "<b>" + k + "</b>";
+    }
+    return ln('<span class="k">' + HIS + '</span><span class="st">' + h + "</span>", "his");
+  }
   function checkVal(v) {
     var m = /^([\d.:]+)(\s*)(.*)$/.exec(v);
     return m ? m[1] + (m[3] ? m[2] + '<span class="u' + (m[3] === "°" ? " dg" : "") + '">' + m[3] + "</span>" : "") : '<span class="t">' + v + "</span>";
@@ -119,6 +127,7 @@
   }
   function kv(k, v) { return '<span class="k">' + k + '</span><span class="v">' + v + "</span>"; }
   function row(k, v, cls) { return ln(kv(k, v), "row " + (cls || "")); }
+  function rg(id) { return '<span class="rg">' + rangeOf(id) + "</span>"; }
   function doneVal(L) {
     var m = /^(\D+)(\d+)(\D+)$/.exec(B.reader.records);
     return '<span class="t b">' + m[1] + "</span>" + m[2] + '<span class="u">' + m[3] + '</span><span class="sub">' + R.formatKST(firstAccess(L)) + "</span>";
@@ -136,7 +145,7 @@
     $("pg").innerHTML = h + "</span>";
   }
   function show(name, html, focusId) {
-    document.body.classList.remove("pv");
+    document.body.classList.remove("pv", "wide");
     $("scr").textContent = name;
     $("view").innerHTML = html;
     drawProgress();
@@ -151,7 +160,7 @@
       '<input class="big time" id="t" name="t" inputmode="numeric" maxlength="5" placeholder="00:00" aria-describedby="e0">' +
       '<div class="err" id="e0" role="alert">' + (err || "") + "</div>" +
       '<button class="act" type="submit">기록 열람</button></form>' +
-      links([link("S2", "열람 번호 등록"), link("S3", "열람자 기록")]), "t");
+      links([link("S2", "열람 번호 등록"), link("S3", "열람자 기록"), link("S4", HIS)]), "t");
     $("t").addEventListener("input", function (e) {
       var d = e.target.value.replace(/\D/g, "").slice(0, 4);
       e.target.value = d.length > 2 ? d.slice(0, 2) + ":" + d.slice(2) : d;
@@ -166,7 +175,7 @@
   function openRecord(v) { go("S1", { seq: addEntry(v) }); }
   function addEntry(v) {
     var t = toSec(v), g = matchSeg(t), L = ledger(), n = L.entries.length, seg = g ? g.id : 0;
-    var again = L.entries.some(function (x) { return x.seg === seg && Math.abs(toSec(x.t) - t) <= CFG.toleranceSec; });
+    var again = L.entries.some(function (x) { return x.seg === seg && Math.abs(toSec(x.t) - t) <= CFG.sameSec; });
     L.entries.push({ seq: n + 1, t: v, seg: seg, at: after(L.entries[n - 1], Date.now()), again: again });
     save();
     return n + 1;
@@ -181,7 +190,7 @@
     function cap(k) { return ln('<span class="k">' + F.s1[k] + "</span>", "row cap"); }
     var part = [
       function () { return cap(0) + planHtml(e); },
-      function () { return cap(1) + loopHtml(e, id, stage) + ln("이 구간 열람 " + viewCount(L, e) + "회", "cap2"); },
+      function () { return cap(1) + loopHtml(id, stage, e.seg ? rangeOf(e.seg) : e.t) + hisHtml(L, e); },
       function () { return checkRows(id); },
       function () { return row(F.s1[3], '<span class="t' + (mismatch ? " b" : "") + '">' + (mismatch ? "불일치 1건" : "일치") + "</span>"); },
       function () { return row(F.s1[4], chip()); },
@@ -189,7 +198,7 @@
     ];
     var h = '<div class="rec">' +
       row("열람 번호 · 순번", no, "slim") +
-      ln("<div>" + kv(F.cam, camName(e)) + '</div><div class="time">' + kv(F.time, e.t) + "</div>", "row two") +
+      ln("<div>" + kv(F.cam, camName(e) + (e.seg ? rg(e.seg) : "")) + '</div><div class="time">' + kv(F.time, e.t) + "</div>", "row two") +
       CFG.s1Order.map(function (k) { return part[k](); }).join("") +
       row(e.again ? "이전 접속 (정정)" : "이전 접속 1건", e.again ? R.formatKST(corrAt(L, e), true) : R.formatKST(preAt(L)), "alert") +
       (e.again ? ln("원본: 인쇄 보관본", "note") : "") +
@@ -197,7 +206,7 @@
       "</div>";
     var l = [link("S0", "다른 시각 열람")];
     if (!S.number) l.push(link("S2", "열람 번호 등록"));
-    l.push(link("S3", "열람자 기록"));
+    l.push(link("S3", "열람자 기록"), link("S4", HIS));
     show("열람 기록", h + lnLinks(l));
     playLoop();
   }
@@ -249,7 +258,29 @@
       (ag ? wide("이전 접속 (정정)", R.formatKST(corrAt(L, ag), true), "alert") : "") +
       (done ? wide(B.reader.label, doneVal(L), "done") : "");
     h += "</div>";
-    show("열람자 기록", h + lnLinks([S.number ? link("S0", "다른 시각 열람") : link("S2", "열람 번호 등록")]));
+    show("열람자 기록", h + lnLinks(S.number ? [link("S0", "다른 시각 열람"), link("S4", HIS)] : [link("S2", "열람 번호 등록")]));
+  }
+  function S4(st) {
+    delay = 0;
+    var L = ledger(), seen = seenMap(L), id = st && st.id, k = st && st.k, h = '<div class="rec arc">';
+    if (!(seen[id] && seen[id][k])) {
+      var last = L.entries.filter(function (e) { return stageNo(L, e); }).pop();
+      id = last ? last.seg : 0; k = last ? stageNo(L, last) : 0;
+    }
+    if (id) h += '<div class="sel">' + ln("<div>" + kv(F.cam, camLabel(id) + rg(id)) + '</div><div class="time">' + kv(HIS, k) + "</div>", "row two") + loopHtml(id, STAGES[k - 1], rangeOf(id)) + "</div>";
+    h += '<div class="lst">' + ln("<span>" + ORG + "</span>" + STAGES.map(function (x, i) { return '<span class="n">' + (i + 1) + "</span>"; }).join(""), "g h");
+    B.channels.forEach(function (c) {
+      var s = seen[c.id] || {}, g = '<div class="c org"><span>' + ORGV.replace(" ", "<br>") + "</span></div>";
+      STAGES.forEach(function (x, i) {
+        g += s[i + 1] ? '<button type="button" class="c' + (c.id === id && i + 1 === k ? " now" : "") + '" data-his="' + c.id + "-" + (i + 1) + '" aria-label="' + camLabel(c.id) + " " + HIS + " " + (i + 1) + '"><img src="' +
+          CFG.thumbs.dir + "loop_" + R.pad(c.id) + "_" + x + CFG.thumbs.ext + '" alt="" width="480" height="270"></button>' : '<div class="c"></div>';
+      });
+      h += ln('<div class="rh"><span>' + camLabel(c.id) + "</span><small>" + rangeOf(c.id) + '</small></div><div class="g">' + g + "</div>");
+    });
+    h += '</div><div class="sum">' + row("열람", seenCount(seen) + "/" + B.channels.length * STAGES.length, "slim") + row(F.judge, chip()) + "</div></div>";
+    show(HIS, h + lnLinks([link("S0", L.entries.length ? "다른 시각 열람" : "기록 열람"), link("S3", "열람자 기록")]));
+    document.body.classList.toggle("wide", !!id);
+    playLoop();
   }
   function ledgerAlert() { return lastAgain(ledger()) ? "corr" : "pre"; }
   function receipt() {
@@ -276,7 +307,7 @@
   }
   function P() { receipt(); document.body.classList.add("pv"); window.scrollTo(0, 0); }
   window.addEventListener("beforeprint", receipt);
-  var SCREENS = { S0: function () { S0(); }, S1: function (st) { S1(st && st.seq); }, S2: function () { S2(); }, S3: function () { S3(); }, P: function () { P(); } };
+  var SCREENS = { S0: function () { S0(); }, S1: function (st) { S1(st && st.seq); }, S2: function () { S2(); }, S3: function () { S3(); }, S4: function (st) { S4(st); }, P: function () { P(); } };
   var CUR = { s: "S0" };
   function go(s, extra, replace) {
     var st = { s: s }; if (extra) for (var k in extra) st[k] = extra[k];
@@ -285,7 +316,8 @@
   }
   window.addEventListener("popstate", function (e) { var st = e.state || { s: "S0" }; CUR = st; (SCREENS[st.s] || SCREENS.S0)(st); });
   document.addEventListener("click", function (e) {
-    var b = e.target.closest("[data-go]");
+    var b = e.target.closest("[data-go]"), c = e.target.closest("[data-his]");
+    if (c) { var v = c.getAttribute("data-his").split("-"); return go("S4", { id: +v[0], k: +v[1] }, CUR.s === "S4"); }
     if (b) { if (b.getAttribute("data-go") === CUR.s) window.scrollTo(0, 0); else go(b.getAttribute("data-go")); }
     else if (e.target.closest(".lp")) playLoop();
   });
@@ -320,6 +352,7 @@
       go("S0");
     },
     KeyS: function () { go("S3"); },
+    KeyA: function () { go("S4"); },
     KeyH: function () { go("S0"); },
     KeyP: function () { go("P"); },
     KeyR: function () { demoReset(); go("S0"); },
