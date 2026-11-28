@@ -1,0 +1,1 @@
+window.NOMiNAL_ASH = [{"name":"ASH-1","hex":"#43403C"},{"name":"ASH-2","hex":"#5B5953"},{"name":"ASH-3","hex":"#74726B"},{"name":"ASH-4","hex":"#8D8D84"},{"name":"ASH-5","hex":"#A8A99E"},{"name":"ASH-6","hex":"#BDBDB3"},{"name":"ASH-7","hex":"#D2D1C9"}];

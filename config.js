@@ -21,6 +21,12 @@ window.NOMiNAL_CFG = {
     suffix: "_noise",
     names: { normal: "normal", s0: "s0", v1: "v1", v2: "v2", v3: "v3" }
   },
+  timeMap: {
+    entrance: { from: "00:00", to: "00:13", loop: { dir: "loops/", name: "loop_entrance_noise" },
+      checks: [["바닥 상태", "건조"], ["조명", "정상"], ["통행 폭", "3.00 m"]] },
+    noSignal: { from: "01:25", to: "99:59", loop: { dir: "loops/", name: "loop_nosignal_noise" } }
+  },
+  w1: { a: true, b: true, c: true, d: false },
   thumbs: { dir: "thumbs/", ext: ".jpg" },
   storageKey: "NOMiNAL.reading.v1"
 };

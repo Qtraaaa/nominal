@@ -20,6 +20,23 @@
     if (rw.length) return rw[rw.length - 1];
     return SEGS.filter(function (g) { return t >= g.s && t < g.e; }).pop() || null;
   }
+  var TM = CFG.timeMap || {};
+  function outside(t) {
+    function inR(r) { return r && t >= toSec(r.from) && t <= toSec(r.to); }
+    return inR(TM.entrance) ? "entrance" : inR(TM.noSignal) ? "nosig" : null;
+  }
+  var GL = window.NOMiNAL_GLYPH || null, W1 = CFG.w1 || {};
+  var SEG_GL = GL ? GL.letters.map(function (l, k) { return l.ch === "i" ? -1 : k; }).filter(function (k) { return k >= 0; }) : [];
+  var I_GL = GL ? GL.letters.map(function (l) { return l.ch; }).indexOf("i") : -1;
+  if (GL && SEG_GL.map(function (k) { return GL.letters[k].ch; }).join("") !== LETTERS.join("")) { console.warn("로고 글자와 구간 글자가 다르다"); GL = null; }
+  function glyph(k, cls) {
+    if (!GL || k < 0) return "";
+    var L = GL.letters[k];
+    return '<svg class="gl' + (cls ? " " + cls : "") + '" viewBox="' + L.x + " 0 " + L.w + " " + GL.h + '" aria-hidden="true" focusable="false">' +
+      L.p.map(function (p) { return '<path d="' + p.d + '"' + (p.rule ? ' fill-rule="' + p.rule + '"' : "") + "/>"; }).join("") + "</svg>";
+  }
+  function segGlyph(id, cls) { return GL ? glyph(SEG_GL[id - 1], cls) : ""; }
+  function glCell(id, cls) { return '<span class="' + cls + '">' + segGlyph(id) + "</span>"; }
   var PLAN = null, PLAN_STATE = "임시";
   function loadPlan() {
     var C = CFG.plan;
@@ -29,6 +46,7 @@
       PLAN = window.NOMiNAL_PLAN.parse(a[0], a[1], a[2]);
       PLAN_STATE = "납품본";
       if (CUR.s === "S1") S1(CUR.seq);
+      else if (CUR.s === "S5") S5(CUR);
     }).catch(function (e) { console.warn("도면 자료를 읽지 못해 자리표시를 쓴다:", e.message); });
   }
   function nearCam(t) {
@@ -52,13 +70,24 @@
     var n = L.entries.slice(0, e.seq - 1).filter(function (x) { return x.seg === e.seg; }).length;
     return STAGES[Math.min(n, STAGES.length - 1)];
   }
+  var REC_NAME = "고정 카메라 기록";
   function loopHtml(id, stage, tl) {
     var C = CFG.loops, f = "loop_" + R.pad(id) + "_" + C.names[stage] + C.suffix;
-    return ln('<video autoplay muted loop playsinline preload="auto"' + (C.poster ? ' poster="' + encodeURI(C.poster.dir + f + C.poster.ext) + '"' : "") + ' data-loop="' + R.pad(id) + "_" + stage + '">' +
+    return ln("<video " + (stillPref() ? "" : "autoplay ") + 'muted loop playsinline preload="auto"' + (C.poster ? ' poster="' + encodeURI(C.poster.dir + f + C.poster.ext) + '"' : "") + ' data-loop="' + R.pad(id) + "_" + stage + '" aria-label="' + camLabel(id) + " " + REC_NAME + '">' +
       C.paths.map(function (p) { return '<source src="' + encodeURI(p.dir + f + p.ext) + '" type="' + p.type + '">'; }).join("") + "</video>" +
       '<span class="hud tl">' + tl + '</span><span class="hud tr">' + camLabel(id) + '</span><span class="hud bl"><i role="img" aria-label="NOMiNAL"></i></span>', "lp");
   }
-  function playLoop() { var v = document.querySelector(".lp video"); if (v) { v.muted = true; var p = v.play(); if (p) p.catch(function () {  }); } }
+  function playLoop(force) {
+    if (!force && stillPref()) return;
+    var v = document.querySelector(".lp video"); if (v) { v.muted = true; var p = v.play(); if (p) p.catch(function () {  }); }
+  }
+  function stillPref() { return !!(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches); }
+  function extraLoop(L, kind, name, tl, logo) {
+    var f = L.dir + L.name;
+    return ln("<video " + (stillPref() ? "" : "autoplay ") + 'muted loop playsinline preload="auto" poster="' + encodeURI(f + ".jpg") + '" data-loop="' + kind + '" aria-label="' + name + '">' +
+      CFG.loops.paths.map(function (p) { return '<source src="' + encodeURI(f + p.ext) + '" type="' + p.type + '">'; }).join("") + "</video>" +
+      '<span class="hud tl">' + tl + "</span>" + (logo ? '<span class="hud bl"><i role="img" aria-label="NOMiNAL"></i></span>' : ""), "lp" + (kind === "nosig" ? " ns" : ""));
+  }
   var HIS = "정정 이력", ORG = "원본", ORGV = "인쇄 보관본", NONE = "기록 없음";
   function stageNo(L, e) { return e.seg ? STAGES.indexOf(stageOf(L, e)) + 1 : 0; }
   function seenMap(L) {
@@ -67,12 +96,14 @@
     return o;
   }
   function seenCount(o) { return Object.keys(o).reduce(function (a, id) { return a + Object.keys(o[id]).length; }, 0); }
+  function hisName(id, k) { return camLabel(id) + " " + HIS + " " + k; }
   function hisHtml(L, e) {
     var n = stageNo(L, e), seen = seenMap(L)[e.seg] || {};
     if (!n) return ln('<span class="k">' + HIS + '</span><span class="none">' + NONE + "</span>", "his");
     var h = '<b class="o">' + ORG + "</b>";
     for (var k = 1; k <= STAGES.length; k++) {
-      h += seen[k] ? '<button type="button" class="' + (k === n ? "now" : "seen") + '" data-his="' + e.seg + "-" + k + '">' + k + "</button>" : "<b>" + k + "</b>";
+      h += seen[k] ? '<button type="button" class="' + (k === n ? "now" : "seen") + '" data-his="' + e.seg + "-" + k + '" aria-label="' + hisName(e.seg, k) + '"' + (k === n ? ' aria-current="true"' : "") + ">" + k + "</button>" :
+        '<button type="button" class="off" disabled aria-label="' + hisName(e.seg, k) + '">' + k + "</button>";
     }
     return ln('<span class="k">' + HIS + '</span><span class="st">' + h + "</span>", "his");
   }
@@ -138,27 +169,35 @@
   function links(arr) { return '<div class="lks">' + arr.join("") + "</div>"; }
   function lnLinks(arr) { return ln(arr.join(""), "lks"); }
   function drawProgress() {
-    var o = opened(), n = Object.keys(o).length, h = "<span>" + n + "/6</span><span class=\"ls\">";
+    var o = opened(), n = Object.keys(o).length, gl = W1.c && GL, whole = gl && W1.d && n === 6;
+    var h = "<span>" + n + "/6</span><span class=\"ls" + (gl ? " gls" : "") + (whole ? " whole" : "") + "\">";
     LETTERS.forEach(function (c, i) {
-      if (i) h += "<s>·</s>";
-      h += '<b class="' + (o[i + 1] ? "on" : "") + '">' + c + "</b>";
+      if (i && !whole) h += "<s>·</s>";
+      if (whole && i === 3) h += glyph(I_GL, "on");
+      h += gl ? segGlyph(i + 1, o[i + 1] ? "on" : "no") : '<b class="' + (o[i + 1] ? "on" : "no") + '">' + c + "</b>";
     });
     $("pg").innerHTML = h + "</span>";
+    $("pg").setAttribute("aria-label", "열람 " + n + "/6");
   }
+  var SITE = document.title, shown = false;
   function show(name, html, focusId) {
     document.body.classList.remove("pv", "wide");
     $("scr").textContent = name;
+    document.title = name + " · " + SITE;
     $("view").innerHTML = html;
     drawProgress();
     window.scrollTo(0, 0);
-    if (focusId && !DEMO && !matchMedia("(pointer:coarse)").matches) { var f = $(focusId); if (f) f.focus({ preventScroll: true }); }
+    var f = focusId && !DEMO && !matchMedia("(pointer:coarse)").matches ? $(focusId) : null;
+    if (f) f.focus({ preventScroll: true });
+    else if (shown) $("scr").focus({ preventScroll: true });
+    shown = true;
   }
   function S0(err) {
     delay = 0;
     show("기록 열람",
       '<form class="fld" id="f0" novalidate autocomplete="off">' +
       '<label class="lab" for="t">' + F.time + "</label>" +
-      '<input class="big time" id="t" name="t" inputmode="numeric" maxlength="5" placeholder="00:00" aria-describedby="e0">' +
+      '<input class="big time" id="t" name="t" inputmode="numeric" maxlength="5" aria-describedby="e0">' +
       '<div class="err" id="e0" role="alert">' + (err || "") + "</div>" +
       '<button class="act" type="submit">기록 열람</button></form>' +
       links([link("S2", "열람 번호 등록"), link("S3", "열람자 기록"), link("S4", HIS)]), "t");
@@ -173,7 +212,11 @@
       openRecord(v);
     });
   }
-  function openRecord(v) { go("S1", { seq: addEntry(v) }); }
+  function openRecord(v) {
+    var o = outside(toSec(v));
+    if (o) return go("S5", { t: v, o: o, at: Date.now() });
+    go("S1", { seq: addEntry(v) });
+  }
   function addEntry(v) {
     var t = toSec(v), g = matchSeg(t), L = ledger(), n = L.entries.length, seg = g ? g.id : 0;
     var again = L.entries.some(function (x) { return x.seg === seg && Math.abs(toSec(x.t) - t) <= CFG.sameSec; });
@@ -190,19 +233,51 @@
     var id = camId(e), stage = stageOf(L, e);
     function cap(k) { return ln('<span class="k">' + NO[k] + "</span>", "row cap"); }
     var part = {};
-    part["고정 카메라 기록"] = function (k) { return cap(k) + loopHtml(id, stage, e.seg ? rangeOf(e.seg) : e.t) + hisHtml(L, e); };
+    part["고정 카메라 기록"] = function (k) { return cap(k) + loopHtml(id, stage, e.t) + hisHtml(L, e); };
     part["위치"] = function (k) { return cap(k) + planHtml(e); };
     part[F.check] = function () { return checkRows(id); };
     part["기록 대조"] = function (k) { return row(NO[k], '<span class="t' + (mismatch ? " b" : "") + '">' + (mismatch ? "불일치 1건" : "일치") + "</span>"); };
     part[F.judge] = function (k) { return row(NO[k], chip()); };
     part["접속"] = function (k) { return row(NO[k], R.formatKST(e.at, true)); };
-    var h = '<div class="rec">' +
+    var big = W1.a ? glCell(id, "lbig out") : "", bigIn = W1.a ? glCell(id, "lbig in") : "";
+    var h = '<div class="rec">' + big +
       row("열람 번호 · 순번", no, "slim") +
-      ln("<div>" + kv(F.cam, camName(e) + (e.seg ? rg(e.seg) : "")) + '</div><div class="time">' + kv(F.time, e.t) + "</div>", "row two") +
+      ln("<div>" + bigIn + kv(F.cam, camName(e) + (e.seg ? rg(e.seg) : "")) + '</div><div class="time">' + kv(F.time, e.t) + "</div>", "row two") +
       F.s1.map(function (k) { return part[k](k); }).join("") +
       row(e.again ? "이전 접속 (정정)" : "이전 접속 1건", e.again ? R.formatKST(corrAt(L, e), true) : R.formatKST(preAt(L)), "alert") +
       (e.again ? ln("원본: 인쇄 보관본", "note") : "") +
       (done ? row(B.reader.label, doneVal(L), "done") : "") +
+      "</div>";
+    var l = [link("S0", "다른 시각 열람")];
+    if (!S.number) l.push(link("S2", "열람 번호 등록"));
+    l.push(link("S3", "열람자 기록"), link("S4", HIS));
+    show("열람 기록", h + lnLinks(l));
+    playLoop();
+  }
+  function S5(st) {
+    var o = st && st.o, v = st && st.t;
+    if (!o || !v || outside(toSec(v)) !== o) return S0();
+    delay = 0;
+    var ns = o === "nosig", spec = ns ? TM.noSignal : TM.entrance;
+    function cap(k) { return ln('<span class="k">' + NO[k] + "</span>", "row cap"); }
+    function shut(cls) { return ln('<span class="shut">' + NONE + "</span>", "blk " + cls); }
+    var no = (S.number ? R.displayNumber(S.number) : '<span class="kr">미등록</span>') + ' · <span class="kr">' + NONE + "</span>";
+    var part = {};
+    part["고정 카메라 기록"] = function (k) {
+      return cap(k) + extraLoop(spec.loop, o, ns ? "신호 없음" : "입구 " + REC_NAME, v, !ns) +
+        ln('<span class="k">' + HIS + '</span><span class="none">' + NONE + "</span>", "his");
+    };
+    part["위치"] = function (k) { return cap(k) + (ns ? shut("pl") : ln(window.NOMiNAL_PLAN.draw(PLAN, 0, 0, CFG.plan.trailSec, camLabel, false), "plan")); };
+    part[F.check] = function (k) {
+      return cap(k) + (ns ? shut("ck") : spec.checks ? spec.checks.map(function (c) { return row(c[0], checkVal(c[1]), "ck"); }).join("") : row("", '<span class="t">' + NONE + "</span>", "ck"));
+    };
+    part["기록 대조"] = function (k) { return row(NO[k], ns ? '<span class="shut">' + NONE + "</span>" : '<span class="t">일치</span>'); };
+    part[F.judge] = function (k) { return row(NO[k], ns ? "" : chip(), ns ? "nj" : ""); };
+    part["접속"] = function (k) { return row(NO[k], R.formatKST(st.at || Date.now(), true)); };
+    var h = '<div class="rec' + (ns ? " nosig" : " entr") + '">' +
+      row("열람 번호 · 순번", no, "slim") +
+      ln("<div>" + kv(F.cam, '<span class="kr">' + (ns ? "신호 없음" : "입구") + "</span>") + '</div><div class="time">' + kv(F.time, v) + "</div>", "row two") +
+      F.s1.map(function (k) { return part[k](k); }).join("") +
       "</div>";
     var l = [link("S0", "다른 시각 열람")];
     if (!S.number) l.push(link("S2", "열람 번호 등록"));
@@ -215,7 +290,7 @@
     show("열람 번호 등록",
       '<form class="fld" id="f2" novalidate autocomplete="off">' +
       '<label class="lab" for="n">열람 번호</label>' +
-      '<input class="big" id="n" name="n" maxlength="9" placeholder="XXXX-XXXX" autocapitalize="characters" spellcheck="false" aria-describedby="e2">' +
+      '<input class="big" id="n" name="n" maxlength="9" autocapitalize="characters" spellcheck="false" aria-describedby="e2">' +
       '<div class="err" id="e2" role="alert">' + (err || "") + "</div>" +
       '<button class="act" type="submit">열람 번호 등록</button></form>' +
       links([link("S0", "기록 열람")]), "n");
@@ -243,22 +318,23 @@
   function S3() {
     delay = 0;
     var L = ledger(), done = openedCount() === 6, al = ledgerAlert(), ag = lastAgain(L);
+    var back = link("S0", L.entries.length ? "다른 시각 열람" : "기록 열람");
     if (!S.number && !done) {
       show("열람자 기록", '<div class="fld"><div class="err" role="alert">열람 번호 없음.</div></div>' +
-        links([link("S2", "열람 번호 등록"), link("S0", "기록 열람")]));
+        links([link("S2", "열람 번호 등록"), back]));
       return;
     }
     function wide(k, v, cls) { return ln('<span class="k">' + k + '</span><span class="v">' + v + "</span>", "row wide" + (cls ? " " + cls : "")); }
     var h = '<div class="rec led">' +
       wide("열람 번호", S.number ? R.displayNumber(S.number) : '<span class="kr">미등록</span>') +
       (L.entries.length ? ln(ledHead(), "row hdr") : "");
-    L.entries.forEach(function (e) { h += ln(ledRow(e), "row"); });
+    L.entries.forEach(function (e) { h += ln(ledRow(e) + (W1.b ? glCell(camId(e), "g1") : ""), "row"); });
     h += wide(F.judge, chip()) +
       wide("이전 접속 1건", R.formatKST(preAt(L)), al === "pre" ? "alert" : "") +
       (ag ? wide("이전 접속 (정정)", R.formatKST(corrAt(L, ag), true), "alert") : "") +
       (done ? wide(B.reader.label, doneVal(L), "done") : "");
     h += "</div>";
-    show("열람자 기록", h + lnLinks(S.number ? [link("S0", "다른 시각 열람"), link("S4", HIS)] : [link("S2", "열람 번호 등록")]));
+    show("열람자 기록", h + lnLinks(S.number ? [back, link("S4", HIS)] : [back, link("S2", "열람 번호 등록")]));
   }
   function S4(st) {
     delay = 0;
@@ -267,15 +343,17 @@
       var last = L.entries.filter(function (e) { return stageNo(L, e); }).pop();
       id = last ? last.seg : 0; k = last ? stageNo(L, last) : 0;
     }
-    if (id) h += '<div class="sel">' + ln("<div>" + kv(F.cam, camLabel(id) + rg(id)) + '</div><div class="time">' + kv(HIS, k) + "</div>", "row two") + loopHtml(id, STAGES[k - 1], rangeOf(id)) + "</div>";
-    h += '<div class="lst">' + ln("<span>" + ORG + "</span>" + STAGES.map(function (x, i) { return '<span class="n">' + (i + 1) + "</span>"; }).join(""), "g h");
+    var at = id ? L.entries.filter(function (e) { return e.seg === id && stageNo(L, e) === k; }).pop() : null;
+    if (id) h += '<div class="sel">' + ln("<div>" + kv(F.cam, camLabel(id) + rg(id)) + '</div><div class="time">' + kv(HIS, k) + "</div>", "row two") + loopHtml(id, STAGES[k - 1], at ? at.t : rangeOf(id)) + "</div>";
+    h += '<div class="lst">' + ln('<span class="lt"></span><div class="g h"><span>' + ORG + "</span>" + STAGES.map(function (x, i) { return '<span class="n">' + (i + 1) + "</span>"; }).join("") + "</div>", "rw hd");
     B.channels.forEach(function (c) {
       var s = seen[c.id] || {}, g = '<div class="c org"><span>' + ORGV.replace(" ", "<br>") + "</span></div>";
       STAGES.forEach(function (x, i) {
-        g += s[i + 1] ? '<button type="button" class="c' + (c.id === id && i + 1 === k ? " now" : "") + '" data-his="' + c.id + "-" + (i + 1) + '" aria-label="' + camLabel(c.id) + " " + HIS + " " + (i + 1) + '"><img src="' +
-          CFG.thumbs.dir + "loop_" + R.pad(c.id) + "_" + x + CFG.thumbs.ext + '" alt="" width="480" height="270"></button>' : '<div class="c"></div>';
+        var now = c.id === id && i + 1 === k;
+        g += s[i + 1] ? '<button type="button" class="c' + (now ? " now" : "") + '" data-his="' + c.id + "-" + (i + 1) + '" aria-label="' + hisName(c.id, i + 1) + '"' + (now ? ' aria-current="true"' : "") + '><img src="' +
+          CFG.thumbs.dir + "loop_" + R.pad(c.id) + "_" + x + CFG.thumbs.ext + '" alt="" width="480" height="270"></button>' : '<button type="button" class="c" disabled aria-label="' + hisName(c.id, i + 1) + '"></button>';
       });
-      h += ln('<div class="rh"><span>' + camLabel(c.id) + "</span><small>" + rangeOf(c.id) + '</small></div><div class="g">' + g + "</div>");
+      h += ln(glCell(c.id, "lt") + '<div class="rb"><div class="rh"><span>' + camLabel(c.id) + "</span><small>" + rangeOf(c.id) + '</small></div><div class="g">' + g + "</div></div>", "rw");
     });
     h += '</div><div class="sum">' + row("열람", seenCount(seen) + "/" + B.channels.length * STAGES.length, "slim") + row(F.judge, chip()) + "</div></div>";
     show(HIS, h + lnLinks([link("S0", L.entries.length ? "다른 시각 열람" : "기록 열람"), link("S3", "열람자 기록")]));
@@ -295,7 +373,7 @@
       (pre === null ? "" : r("이전 접속 1건", R.formatKST(pre), al === "pre")) +
       (ag ? r("이전 접속 (정정)", R.formatKST(corrAt(L, ag), true), al === "corr") + '<div class="r"><span class="k">원본: 인쇄 보관본</span></div>' : "");
     if (openedCount() === 6) h += r(B.reader.label, doneVal(L));
-    h += '<div class="rpg"><span>' + openedCount() + "/6</span><span>" + LETTERS.map(function (c, i) { return '<b class="' + (o[i + 1] ? "on" : "") + '">' + c + "</b>"; }).join(" · ") + "</span></div>" +
+    h += '<div class="rpg"><span>' + openedCount() + "/6</span><span>" + LETTERS.map(function (c, i) { return '<b class="' + (o[i + 1] ? "on" : "no") + '">' + c + "</b>"; }).join(" · ") + "</span></div>" +
       '<div class="rft"><span class="wm" role="img" aria-label="NOMiNAL"></span> — 정상으로 기록된 이상</div>';
     $("rc").innerHTML = h;
     var el = $("rc"), keep = el.getAttribute("style");
@@ -305,9 +383,9 @@
     var st = $("rcpage") || document.head.appendChild(Object.assign(document.createElement("style"), { id: "rcpage" }));
     st.textContent = "@page{size:80mm " + mm + "mm;margin:0}";
   }
-  function P() { receipt(); document.body.classList.add("pv"); window.scrollTo(0, 0); }
+  function P() { receipt(); document.body.classList.add("pv"); document.title = "열람자 기록 · " + SITE; window.scrollTo(0, 0); }
   window.addEventListener("beforeprint", receipt);
-  var SCREENS = { S0: function () { S0(); }, S1: function (st) { S1(st && st.seq); }, S2: function () { S2(); }, S3: function () { S3(); }, S4: function (st) { S4(st); }, P: function () { P(); } };
+  var SCREENS = { S0: function () { S0(); }, S1: function (st) { S1(st && st.seq); }, S2: function () { S2(); }, S3: function () { S3(); }, S4: function (st) { S4(st); }, S5: function (st) { S5(st); }, P: function () { P(); } };
   var CUR = { s: "S0" };
   function go(s, extra, replace) {
     var st = { s: s }; if (extra) for (var k in extra) st[k] = extra[k];
@@ -317,9 +395,15 @@
   window.addEventListener("popstate", function (e) { var st = e.state || { s: "S0" }; CUR = st; (SCREENS[st.s] || SCREENS.S0)(st); });
   document.addEventListener("click", function (e) {
     var b = e.target.closest("[data-go]"), c = e.target.closest("[data-his]");
-    if (c) { var v = c.getAttribute("data-his").split("-"); return go("S4", { id: +v[0], k: +v[1] }, CUR.s === "S4"); }
+    if (c) {
+      var v = c.getAttribute("data-his").split("-"), same = CUR.s === "S4";
+      go("S4", { id: +v[0], k: +v[1] }, same);
+      var nb = same && document.querySelector('.arc [data-his="' + v.join("-") + '"]');
+      if (nb) nb.focus({ preventScroll: true });
+      return;
+    }
     if (b) { if (b.getAttribute("data-go") === CUR.s) window.scrollTo(0, 0); else go(b.getAttribute("data-go")); }
-    else if (e.target.closest(".lp")) playLoop();
+    else if (e.target.closest(".lp")) playLoop(true);
   });
   function demoStart() {
     demoReset();
@@ -375,6 +459,8 @@
       loop: (function (v) { return v ? { id: v.getAttribute("data-loop"), src: decodeURI(v.currentSrc), w: v.videoWidth, t: v.currentTime, paused: v.paused, ready: v.readyState, err: !!v.error, poster: decodeURI(v.poster) } : null; })(document.querySelector(".lp video")),
       demo: DEMO, screen: CUR.s,
       plan: PLAN_STATE, hasPlan: !!PLAN, view: PLAN ? PLAN.vb : null,
-      ledger: ledger().entries, judge: function (mmss) { var g = matchSeg(toSec(mmss)); return (g ? "이상 " : "정상 ") + camName({ t: mmss, seg: g ? g.id : 0 }); } };
+      ledger: ledger().entries, judge: function (mmss) {
+        var o = outside(toSec(mmss)); if (o) return o === "nosig" ? "신호 없음" : "정상 입구";
+        var g = matchSeg(toSec(mmss)); return (g ? "이상 " : "정상 ") + camName({ t: mmss, seg: g ? g.id : 0 }); } };
   };
 })();

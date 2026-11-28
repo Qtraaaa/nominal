@@ -58,7 +58,7 @@ window.NOMiNAL_PLAN = (function () {
     var m = 4 * u;
     return '<svg viewBox="' + [vb[0] - m, vb[1] - m, vb[2] + 2 * m, vb[3] + 2 * m].map(n1).join(" ") + '"><g class="wall">' + P.svg + "</g>" +
       [1, 2, 3, 4, 5, 6].filter(function (k) { return k !== id; }).map(cam).join("") +
-      (link ? '<line class="lnk" x1="' + n1(p.x) + '" y1="' + n1(p.y) + '" x2="' + n1(P.cams[id].x) + '" y2="' + n1(P.cams[id].y) + '"/>' : "") + cam(id) +
+      (link && id ? '<line class="lnk" x1="' + n1(p.x) + '" y1="' + n1(p.y) + '" x2="' + n1(P.cams[id].x) + '" y2="' + n1(P.cams[id].y) + '"/>' : "") + (id ? cam(id) : "") +
       '<polyline class="trail" points="' + tr.join(" ") + '"/><circle class="dev" cx="' + n1(p.x) + '" cy="' + n1(p.y) + '" r="' + n1(2.6 * u) + '"/></svg>';
   }
   return { parse: parse, at: at, nearest: nearest, draw: draw };
